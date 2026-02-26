@@ -21,3 +21,5 @@ video_data/teeth_ref/*_2.png
 
 /websocket_demo/
 web_demo/models/
+# 忽略模型文件（通过 download_models.sh 下载）
+/models/

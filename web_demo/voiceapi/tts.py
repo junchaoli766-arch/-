@@ -128,22 +128,55 @@ async def get_audio(text, voice_speed=1.0, voice_id=0, target_sample_rate = 1600
     )
     # audio = tts_engine.generate(text, voice_id, voice_speed)
     samples = audio.samples
-    if target_sample_rate != original_sample_rate:
+    
+    # 确保 samples 是正确的格式
+    if samples is None or len(samples) == 0:
+        raise ValueError("TTS生成的音频数据为空")
+    
+    # 确保是 numpy 数组
+    if not isinstance(samples, np.ndarray):
+        samples = np.array(samples)
+    
+    # 确保是1D数组（单声道）
+    if samples.ndim > 1:
+        samples = samples.flatten()
+    
+    # 确保数据类型是 float32
+    if samples.dtype != np.float32:
+        samples = samples.astype(np.float32)
+    
+    # 确保值在 [-1.0, 1.0] 范围内
+    if samples.max() > 1.0 or samples.min() < -1.0:
+        samples = np.clip(samples, -1.0, 1.0)
+    
+    # 重采样处理
+    current_sample_rate = getattr(audio, 'sample_rate', original_sample_rate)
+    if target_sample_rate != current_sample_rate:
         num_samples = int(
-            len(samples) * target_sample_rate / original_sample_rate)
+            len(samples) * target_sample_rate / current_sample_rate)
         resampled_chunk = resample(samples, num_samples)
-        audio.samples = resampled_chunk.astype(np.float32)
-        audio.sample_rate = target_sample_rate
+        samples = resampled_chunk.astype(np.float32)
+        current_sample_rate = target_sample_rate
+    
+    # 确保采样率有效
+    if current_sample_rate <= 0:
+        current_sample_rate = target_sample_rate
 
     output = io.BytesIO()
     # 使用 soundfile 写入 WAV 格式数据（自动生成头部）
-    soundfile.write(
-        output,
-        audio.samples,  # 音频数据（numpy 数组）
-        samplerate=audio.sample_rate,  # 采样率（如 16000）
-        subtype="PCM_16",  # 16-bit PCM 编码
-        format="WAV"  # WAV 容器格式
-    )
+    try:
+        soundfile.write(
+            output,
+            samples,  # 音频数据（numpy 数组）
+            samplerate=int(current_sample_rate),  # 采样率（如 16000）
+            subtype="PCM_16",  # 16-bit PCM 编码
+            format="WAV"  # WAV 容器格式
+        )
+    except Exception as e:
+        print(f"soundfile.write 错误: {e}")
+        print(f"samples shape: {samples.shape}, dtype: {samples.dtype}")
+        print(f"sample_rate: {current_sample_rate}")
+        raise
 
     # 获取字节数据并 Base64 编码
     wav_data = output.getvalue()

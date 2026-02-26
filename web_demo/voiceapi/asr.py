@@ -22,7 +22,7 @@ class ASRResult:
 
 import wave
 class ASRStream:
-    def __init__(self, recognizer: Union[sherpa_onnx.OnlineRecognizer | sherpa_onnx.OfflineRecognizer], sample_rate: int) -> None:
+    def __init__(self, recognizer: Union[sherpa_onnx.OnlineRecognizer, sherpa_onnx.OfflineRecognizer], sample_rate: int) -> None:
         self.recognizer = recognizer
         self.inbuf = asyncio.Queue()
         self.outbuf = asyncio.Queue()

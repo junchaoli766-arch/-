@@ -7,3 +7,9 @@ glfw
 PyOpenGL
 gradio
 sherpa-onnx
+openai
+fastapi
+uvicorn
+soundfile
+scipy
+numpy

@@ -106,11 +106,11 @@ llm_client = OpenAI(
 )
 ```
 
-DeepSeek：
+DeepSeek：代码留白111
 ```bash
 from openai import OpenAI
 base_url = "https://api.deepseek.com"
-api_key = ""
+api_key = "sk-5974b618604c486f912b7b2f6bb7d41c"
 model_name = "deepseek-chat"
 
 llm_client = OpenAI(
@@ -127,8 +127,3 @@ llm_client = OpenAI(
 
 本项目使用了 WebCodecs API，该 API 仅在安全上下文（HTTPS 或 localhost）中可用。因此，在部署或测试时，请确保您的网页在 HTTPS 环境下运行，或者使用 localhost 进行本地测试。
 
-### 6. Thanks
-此处重点感谢以下项目，本项目大量使用了以下项目的相关代码
-
-- [Project AIRI](https://github.com/moeru-ai/airi)
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
