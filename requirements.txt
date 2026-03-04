@@ -13,3 +13,8 @@ uvicorn
 soundfile
 scipy
 numpy
+# 后台管理系统依赖
+sqlalchemy[asyncio]>=2.0
+aiosqlite>=0.19
+alembic>=1.13
+cryptography>=42.0

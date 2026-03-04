@@ -130,7 +130,7 @@
     <body>
         <div id="dropdownContainer">
             <select id="characterDropdown">
-                <option value="assets">男性一</option>
+                <option value="assets">数字人</option>
                 <option value="assets2">女性一</option>
             </select>
         </div>
@@ -153,6 +153,20 @@
         <div id="screen"></div>
         <iframe id="screen2" src="dialog_RealTime.html" frameborder="0" style="display: none;"></iframe>
         <div id="startMessage">加载中</div>
+        <script>
+            // 从服务端读取当前激活的数字人名称，同步更新下拉菜单第一项
+            document.addEventListener('DOMContentLoaded', function () {
+                fetch('dh_config.json')
+                    .then(function (r) { return r.json(); })
+                    .then(function (cfg) {
+                        var opt = document.querySelector('#characterDropdown option[value="assets"]');
+                        if (opt && cfg.name) {
+                            opt.textContent = cfg.name;
+                        }
+                    })
+                    .catch(function () {}); // 文件不存在时静默忽略
+            });
+        </script>
         <script src="js/pako.min.js"></script>
         <script src="js/mp4box.all.min.js"></script>
         <script src="js/DHLiveMini.js"></script>

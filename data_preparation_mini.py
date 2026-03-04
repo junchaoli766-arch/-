@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import subprocess
 import tqdm
 import numpy as np
@@ -256,7 +257,20 @@ def prepare_video(
 def data_preparation_mini(input_video, video_dir_path, resize_option = False):
     # 检测系统环境是否有ffmpeg
     if not shutil.which("ffmpeg"):
-        raise EnvironmentError("FFmpeg未安装或不在PATH中，请安装ffmpeg并设置为环境变量")
+        import platform
+        system = platform.system()
+        install_guide = ""
+        if system == "Darwin":  # macOS
+            install_guide = "\n\n📦 macOS 安装方法：\n   使用 Homebrew 安装：brew install ffmpeg\n   安装完成后，请重新运行程序。"
+        elif system == "Linux":
+            install_guide = "\n\n📦 Linux 安装方法：\n   Ubuntu/Debian: sudo apt-get update && sudo apt-get install -y ffmpeg\n   CentOS/RHEL: sudo yum install -y ffmpeg\n   安装完成后，请重新运行程序。"
+        elif system == "Windows":
+            install_guide = "\n\n📦 Windows 安装方法：\n   1. 访问 https://ffmpeg.org/download.html 下载 FFmpeg\n   2. 解压后将 bin 目录添加到系统 PATH 环境变量\n   3. 重新打开命令行窗口并运行程序。"
+        else:
+            install_guide = "\n\n📦 请访问 https://ffmpeg.org/download.html 查看对应系统的安装方法。"
+        
+        error_msg = f"FFmpeg未安装或不在PATH中，请安装ffmpeg并设置为环境变量{install_guide}"
+        raise EnvironmentError(error_msg)
 
     # 创建输出目录
     data_dir = os.path.join(video_dir_path, "data")

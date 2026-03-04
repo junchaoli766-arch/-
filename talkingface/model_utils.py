@@ -1,4 +1,5 @@
 import sys
+import os
 import numpy as np
 import kaldi_native_fbank as knf
 from scipy.io import wavfile
@@ -7,6 +8,16 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
 pca = None
 def LoadAudioModel(ckpt_path):
+    # 检查模型文件是否存在
+    if not os.path.exists(ckpt_path):
+        error_msg = f"音频模型文件不存在: {ckpt_path}\n\n"
+        error_msg += "📦 请下载模型文件：\n"
+        error_msg += "   1. 百度网盘: https://pan.baidu.com/s/1jH3WrIAfwI3U5awtnt9KPQ?pwd=ynd7\n"
+        error_msg += "   2. Google Drive: https://drive.google.com/drive/folders/1az5WEWOFmh0_yrF3I9DEyctMyjPolo8V?usp=sharing\n\n"
+        error_msg += "   下载后，请将模型文件解压到项目根目录的 checkpoint 文件夹中。\n"
+        error_msg += f"   期望的文件路径: {os.path.abspath(ckpt_path)}"
+        raise FileNotFoundError(error_msg)
+    
     # if method == "lstm":
     #     ckpt_path = 'checkpoint/lstm/lstm_model_epoch_560.pth'
     #     Audio2FeatureModel = torch.load(model_path).to(device)

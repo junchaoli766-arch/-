@@ -1,12 +1,24 @@
 import json
 import os
+import sys
 from contextlib import asynccontextmanager
 import re
 import asyncio
 import base64
+from pathlib import Path
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Request, UploadFile, File,HTTPException,WebSocketDisconnect,WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+
+# 允许导入项目根目录下的 admin_backend 包
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from admin_backend.db.database import init_db
+from api.config import router as config_router
+from api.dh import router as dh_router
 from voiceapi.asr import start_asr_stream, ASRResult,ASREngineManager
 import uvicorn
 import argparse
@@ -16,18 +28,32 @@ from voiceapi.tts import get_audio,TTSEngineManager
 # 2. 生命周期管理
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 确保数据库表结构存在
+    await init_db()
     # 服务启动时初始化模型（示例参数）
     print("ASR模型正在初始化，请稍等")
     ASREngineManager.initialize(samplerate=16000, args = args)
     print("TTS模型正在初始化，请稍等")
     TTSEngineManager.initialize(args = args)
     yield
-    # 服务关闭时清理资源
-    if ASREngineManager.get_engine():
-        ASREngineManager.get_engine().cleanup()
+    # 服务关闭时清理资源（OnlineRecognizer 不一定有 cleanup 方法，用 hasattr 保护）
+    engine = ASREngineManager.get_engine()
+    if engine and hasattr(engine, 'cleanup'):
+        engine.cleanup()
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(config_router)
+app.include_router(dh_router)
 
 # 挂载静态文件
 app.mount("/static", StaticFiles(directory="web_demo/static"), name="static")
