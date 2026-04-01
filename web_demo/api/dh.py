@@ -32,6 +32,8 @@ class DigitalHumanOut(BaseModel):
     name: str
     asset_path: str
     thumbnail_path: Optional[str] = None
+    system_prompt: Optional[str] = None
+    default_voice_id: Optional[int] = None
     is_active: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -42,6 +44,8 @@ class DigitalHumanCreateIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     asset_path: str = Field(..., min_length=1, max_length=512)
     thumbnail_path: Optional[str] = Field(default=None, max_length=512)
+    system_prompt: Optional[str] = None
+    default_voice_id: Optional[int] = None
     is_active: bool = False
 
 
@@ -49,6 +53,8 @@ class DigitalHumanUpdateIn(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     asset_path: Optional[str] = Field(default=None, min_length=1, max_length=512)
     thumbnail_path: Optional[str] = Field(default=None, max_length=512)
+    system_prompt: Optional[str] = None
+    default_voice_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -59,6 +65,8 @@ def _to_out(row: DigitalHuman) -> DigitalHumanOut:
         name=row.name,
         asset_path=row.asset_path,
         thumbnail_path=row.thumbnail_path,
+        system_prompt=row.system_prompt,
+        default_voice_id=row.default_voice_id,
         is_active=row.is_active,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -128,6 +136,8 @@ async def create_digital_human(
         name=payload.name,
         asset_path=payload.asset_path,
         thumbnail_path=payload.thumbnail_path,
+        system_prompt=payload.system_prompt,
+        default_voice_id=payload.default_voice_id,
         is_active=payload.is_active,
     )
     session.add(row)
@@ -153,20 +163,25 @@ async def update_digital_human(
         raise HTTPException(status_code=404, detail=f"Digital human not found: {dh_uuid}")
 
     was_active = row.is_active
+    fields_set = getattr(payload, "model_fields_set", getattr(payload, "__fields_set__", set()))
 
-    if payload.name is not None:
+    if "name" in fields_set and payload.name is not None:
         row.name = payload.name
-    if payload.asset_path is not None:
+    if "asset_path" in fields_set and payload.asset_path is not None:
         row.asset_path = payload.asset_path
-    if payload.thumbnail_path is not None:
+    if "thumbnail_path" in fields_set:
         row.thumbnail_path = payload.thumbnail_path
-    if payload.is_active is not None:
+    if "system_prompt" in fields_set:
+        row.system_prompt = payload.system_prompt
+    if "default_voice_id" in fields_set:
+        row.default_voice_id = payload.default_voice_id
+    if "is_active" in fields_set:
         row.is_active = payload.is_active
 
-    if payload.is_active is True:
+    if "is_active" in fields_set and payload.is_active is True:
         await _set_only_active(session, dh_uuid)
         _persist_active_uuid(dh_uuid)
-    elif payload.is_active is False and was_active:
+    elif "is_active" in fields_set and payload.is_active is False and was_active:
         current_active = await session.scalar(
             select(DigitalHuman).where(DigitalHuman.is_active.is_(True))
         )

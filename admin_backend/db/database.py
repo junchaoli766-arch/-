@@ -7,6 +7,7 @@ create_all 建表入口。数据库文件默认位于项目根目录 admin.db。
 import os
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -48,6 +49,18 @@ async def init_db() -> None:
     """创建所有表（首次启动或测试时调用）。"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_schema(conn)
+
+
+async def _ensure_schema(conn) -> None:
+    """轻量 schema 补丁：为旧库补齐新增列。"""
+    result = await conn.execute(text("PRAGMA table_info(digital_humans)"))
+    existing_columns = {str(row[1]) for row in result.fetchall()}
+
+    if "system_prompt" not in existing_columns:
+        await conn.execute(text("ALTER TABLE digital_humans ADD COLUMN system_prompt TEXT"))
+    if "default_voice_id" not in existing_columns:
+        await conn.execute(text("ALTER TABLE digital_humans ADD COLUMN default_voice_id INTEGER"))
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

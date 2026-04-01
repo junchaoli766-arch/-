@@ -6,17 +6,20 @@ import re
 import asyncio
 import base64
 from pathlib import Path
+from typing import Optional
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Request, UploadFile, File,HTTPException,WebSocketDisconnect,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 # 允许导入项目根目录下的 admin_backend 包
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from admin_backend.db.database import init_db
+from admin_backend.db.database import AsyncSessionLocal, init_db
+from admin_backend.db.models import DigitalHuman
 from api.config import router as config_router
 from api.dh import router as dh_router
 from voiceapi.asr import start_asr_stream, ASRResult,ASREngineManager
@@ -87,7 +90,83 @@ PUNCTUATION_SET = {
     ',', '.', '!', '?', ';', ':', '(', ')', '[', ']', '"', "'"
 }
 
-async def gen_stream(prompt, asr = False, voice_speed=None, voice_id=None):
+VIDEO_DATA_DIR = PROJECT_ROOT / "video_data"
+ACTIVE_DH_FILE = VIDEO_DATA_DIR / "active_dh.txt"
+
+
+def _read_active_uuid_from_file():
+    if not ACTIVE_DH_FILE.exists():
+        return None
+    content = ACTIVE_DH_FILE.read_text(encoding="utf-8").strip()
+    return content or None
+
+
+def _read_dh_name_from_metadata(dh_uuid: Optional[str]) -> Optional[str]:
+    if not dh_uuid:
+        return None
+    metadata_path = VIDEO_DATA_DIR / dh_uuid / "metadata.json"
+    if not metadata_path.exists():
+        return None
+    try:
+        data = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    name = str(data.get("name", "")).strip()
+    return name or None
+
+
+def _build_system_prompt(
+    dh: Optional[DigitalHuman],
+    character_asset: str,
+    fallback_name: Optional[str] = None,
+) -> Optional[str]:
+    if dh and dh.system_prompt and dh.system_prompt.strip():
+        return dh.system_prompt.strip()
+    if dh:
+        return (
+            f"你正在扮演数字人「{dh.name}」。"
+            "请始终保持该角色口吻，回答自然、简洁、友好。"
+        )
+    if fallback_name:
+        return (
+            f"你正在扮演数字人「{fallback_name}」。"
+            "请始终保持该角色口吻，回答自然、简洁、友好。"
+        )
+    if character_asset == "assets2":
+        return "你是一位温柔、耐心的女性数字人助手，请使用自然亲和的中文风格对话。"
+    return None
+
+
+def _normalize_voice_id(raw_voice_id):
+    if raw_voice_id in ("", None):
+        return None
+    try:
+        return int(raw_voice_id)
+    except (TypeError, ValueError):
+        return 0
+
+
+async def _resolve_digital_human(dh_uuid: Optional[str], character_asset: str) -> Optional[DigitalHuman]:
+    target_uuid = (dh_uuid or "").strip()
+    if not target_uuid and character_asset == "assets":
+        target_uuid = _read_active_uuid_from_file() or ""
+
+    async with AsyncSessionLocal() as session:
+        if target_uuid:
+            row = await session.scalar(
+                select(DigitalHuman).where(DigitalHuman.uuid == target_uuid)
+            )
+            if row:
+                return row
+
+        if character_asset == "assets":
+            return await session.scalar(
+                select(DigitalHuman).where(DigitalHuman.is_active.is_(True))
+            )
+    return None
+
+
+async def gen_stream(prompt, asr = False, voice_speed=None, voice_id=None, system_prompt=None):
     print("gen_stream", voice_speed, voice_id)
     if asr:
         chunk = {
@@ -97,7 +176,7 @@ async def gen_stream(prompt, asr = False, voice_speed=None, voice_id=None):
 
     # Streaming:
     print("----- streaming request -----")
-    stream = llm_stream(prompt)
+    stream = llm_stream(prompt, system_prompt=system_prompt)
     llm_answer_cache = ""
     for chunk in stream:
         if not chunk.choices:
@@ -191,16 +270,34 @@ async def eb_stream(request: Request):
         body = await request.json()
         input_mode = body.get("input_mode")
         voice_speed = body.get("voice_speed", 1.0)
-        voice_id = body.get("voice_id", 0)
+        voice_id = _normalize_voice_id(body.get("voice_id"))
+        dh_uuid = body.get("dh_uuid")
+        character_asset = body.get("character_asset", "assets")
+        dh = await _resolve_digital_human(dh_uuid, character_asset)
+        fallback_uuid = (dh_uuid or "").strip() or _read_active_uuid_from_file()
+        fallback_name = _read_dh_name_from_metadata(fallback_uuid)
+        system_prompt = _build_system_prompt(dh, character_asset, fallback_name=fallback_name)
 
         if voice_speed == "":
             voice_speed = 1.0
-        if voice_id == "":
-            voice_id = 0
+        if voice_id is None:
+            if dh and dh.default_voice_id is not None:
+                voice_id = dh.default_voice_id
+            else:
+                voice_id = 0
 
         if input_mode == "text":
             prompt = body.get("prompt")
-            return StreamingResponse(gen_stream(prompt, asr=False, voice_speed=voice_speed, voice_id=voice_id), media_type="application/json")
+            return StreamingResponse(
+                gen_stream(
+                    prompt,
+                    asr=False,
+                    voice_speed=voice_speed,
+                    voice_id=voice_id,
+                    system_prompt=system_prompt,
+                ),
+                media_type="application/json",
+            )
         else:
             raise HTTPException(status_code=400, detail="Invalid input mode")
     except Exception as e:

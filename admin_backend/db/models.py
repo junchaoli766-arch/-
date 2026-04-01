@@ -78,6 +78,8 @@ class DigitalHuman(Base):
         name: 用户设定的显示名称。
         asset_path: 资产目录绝对路径，例如 /…/video_data/<uuid>/assets。
         thumbnail_path: 封面图路径（可选，用于管理面板展示）。
+        system_prompt: 该数字人的对话系统提示词（人设）。
+        default_voice_id: 默认音色 ID（前端未传时作为兜底）。
         is_active: 当前是否为激活状态（全局只有 1 个为 True）。
         created_at: 创建时间（UTC）。
         updated_at: 最后更新时间（UTC）。
@@ -90,6 +92,8 @@ class DigitalHuman(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     asset_path: Mapped[str] = mapped_column(String(512), nullable=False)
     thumbnail_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    default_voice_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

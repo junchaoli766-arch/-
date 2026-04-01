@@ -2,6 +2,7 @@ let server_url = "http://localhost:8888/eb_stream"
 let websocket_url = "ws://localhost:8888/asr?samplerate=16000"
 let ws = null;   // ASR使用websocket双向流式连接
 let isVoiceMode = true;                 // 默认使用语音模式
+let currentDhUuid = "";
 
 // 录音阶段
 let asr_audio_recorder = new PCMAudioRecorder();
@@ -36,7 +37,45 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!window.isSecureContext) {
     alert('本项目使用了 WebCodecs API，该 API 仅在安全上下文（HTTPS 或 localhost）中可用。因此，在部署或测试时，请确保您的网页在 HTTPS 环境下运行，或者使用 localhost 进行本地测试。');
   }
+
+  bindParentCharacterDropdown();
+  refreshActiveDhUuid();
 });
+
+function bindParentCharacterDropdown() {
+    const parentDropdown = window.parent?.document?.getElementById('characterDropdown');
+    if (!parentDropdown) {
+        return;
+    }
+    parentDropdown.addEventListener('change', () => {
+        if (parentDropdown.value === "assets") {
+            refreshActiveDhUuid();
+        }
+    });
+}
+
+function getSelectedCharacterAsset() {
+    const parentDropdown = window.parent?.document?.getElementById('characterDropdown');
+    if (!parentDropdown) {
+        return "assets";
+    }
+    return parentDropdown.value || "assets";
+}
+
+async function refreshActiveDhUuid() {
+    try {
+        const response = await fetch("/api/dh/active");
+        if (!response.ok) {
+            currentDhUuid = "";
+            return;
+        }
+        const data = await response.json();
+        currentDhUuid = data?.uuid || "";
+    } catch (error) {
+        console.warn("获取 active 数字人失败:", error);
+        currentDhUuid = "";
+    }
+}
 
 // 初始设置为语音模式
 function setVoiceMode() {
@@ -324,7 +363,23 @@ async function sendTextMessage(inputValue) {
                 characterName = ""; // 默认值
             }
         }
-        let requestBody = {"input_mode": "text", 'prompt': inputValue, 'voice_id': characterName, 'voice_speed': "" }
+        const selectedAsset = getSelectedCharacterAsset();
+        let requestDhUuid = "";
+        if (selectedAsset === "assets") {
+            if (!currentDhUuid) {
+                await refreshActiveDhUuid();
+            }
+            requestDhUuid = currentDhUuid;
+        }
+
+        let requestBody = {
+            "input_mode": "text",
+            "prompt": inputValue,
+            "voice_id": characterName,
+            "voice_speed": "",
+            "dh_uuid": requestDhUuid,
+            "character_asset": selectedAsset
+        };
         try {
             const response = await fetch(server_url, {
                 method: 'POST',
